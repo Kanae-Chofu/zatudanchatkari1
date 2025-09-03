@@ -9,15 +9,8 @@ ADMIN_PASS = "admin123"   # 管理者パスワード（簡易版）
 
 # --- データベース初期化 ---
 def init_db():
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect("chat.db", check_same_thread=False)
     c = conn.cursor()
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS threads (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT,
-            created_at TEXT
-        )
-    ''')
     c.execute('''
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -27,6 +20,7 @@ def init_db():
             thread_id INTEGER
         )
     ''')
+
     c.execute('''
         CREATE TABLE IF NOT EXISTS users (
             username TEXT PRIMARY KEY,
