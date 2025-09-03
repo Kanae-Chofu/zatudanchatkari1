@@ -33,6 +33,12 @@ def init_db():
     # デフォルトスレ（雑談）を 1 個つくっておく
     c.execute("INSERT OR IGNORE INTO threads (id, title, created_at) VALUES (1, ?, ?)", 
               ("雑談スレ", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+
+    try:
+        c.execute("ALTER TABLE messages ADD COLUMN thread_id INTEGER DEFAULT 1")
+    except sqlite3.OperationalError:
+        pass  # すでにカラムがある場合は無視
+
     conn.commit()
     conn.close()
 
