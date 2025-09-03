@@ -99,7 +99,7 @@ def create_thread(title):
 
 # --- Streamlit UI ---
 def main():
-    st.title("スレッド型 掲示板 💬")
+    st.title("匿名チャット(デモ版)")
 
     if "user" not in st.session_state:
         st.session_state.user = None
@@ -169,6 +169,16 @@ def main():
     if st.button("← スレ一覧へ戻る"):
         st.session_state.thread_id = None
         st.rerun()
+
+   # 管理者だけ履歴全削除
+    if st.session_state.user == ADMIN_USER:
+        if st.button("💥 全履歴を削除（管理者用）"):
+            conn = sqlite3.connect(DB_FILE)
+            c = conn.cursor()
+            c.execute("DELETE FROM messages")
+            conn.commit()
+            conn.close()
+            st.success("チャット履歴をすべて削除しました")
 
     # メッセージ入力
     message = st.text_input("メッセージを入力")
