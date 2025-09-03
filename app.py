@@ -12,11 +12,19 @@ def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute('''
+        CREATE TABLE IF NOT EXISTS threads (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT,
+            created_at TEXT
+        )
+    ''')
+    c.execute('''
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT,
             message TEXT,
-            timestamp TEXT
+            timestamp TEXT,
+            thread_id INTEGER
         )
     ''')
     c.execute('''
@@ -27,8 +35,13 @@ def init_db():
     ''')
     # 管理者アカウントを登録
     c.execute("INSERT OR IGNORE INTO users (username, password) VALUES (?, ?)", (ADMIN_USER, ADMIN_PASS))
+
+    # デフォルトスレ（雑談）を 1 個つくっておく
+    c.execute("INSERT OR IGNORE INTO threads (id, title, created_at) VALUES (1, ?, ?)", 
+              ("雑談スレ", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     conn.commit()
     conn.close()
+
 
 # --- ユーザー認証 ---
 def check_user(username, password):
@@ -40,19 +53,19 @@ def check_user(username, password):
     return result is not None
 
 # --- メッセージ保存 ---
-def save_message(username, message):
+def save_message(username, message, thread_id):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    c.execute("INSERT INTO messages (username, message, timestamp) VALUES (?, ?, ?)",
-              (username, message, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    c.execute("INSERT INTO messages (username, message, timestamp, thread_id) VALUES (?, ?, ?, ?)",
+              (username, message, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), thread_id))
     conn.commit()
     conn.close()
 
 # --- メッセージ取得 ---
-def load_messages():
+def load_messages(thread_id):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    c.execute("SELECT id, username, message, timestamp FROM messages ORDER BY id ASC")
+    c.execute("SELECT id, username, message, timestamp FROM messages WHERE thread_id=? ORDER BY id ASC", (thread_id,))
     rows = c.fetchall()
     conn.close()
     return rows
@@ -65,15 +78,36 @@ def delete_message(msg_id):
     conn.commit()
     conn.close()
 
+#スレッドよみこみ
+def load_threads():
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("SELECT id, title, created_at FROM threads ORDER BY id DESC")
+    rows = c.fetchall()
+    conn.close()
+    return rows
+
+#スレッド作成
+def create_thread(title):
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("INSERT INTO threads (title, created_at) VALUES (?, ?)",
+              (title, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    conn.commit()
+    conn.close()
+
+
 # --- Streamlit UI ---
 def main():
-    st.title("匿名チャット（デモ版）💬")
+    st.title("スレッド型 掲示板 💬")
 
-    # セッションステート初期化
     if "user" not in st.session_state:
         st.session_state.user = None
+    if "thread_id" not in st.session_state:
+        st.session_state.thread_id = None  # どのスレを見ているか
 
-    # --- ログイン / 新規登録画面 ---
+    # --- ログイン処理（省略：今のままでOK） ---
+
     if st.session_state.user is None:
         st.subheader("ログイン")
         login_user = st.text_input("ユーザー名", key="login_user")
@@ -102,47 +136,56 @@ def main():
                 conn.close()
             else:
                 st.error("ユーザー名とパスワードを入力してください")
+        return  
+# ログインしていないのでここで終
 
-        return  # ログインしていないのでここで終了
-
-    # --- ログアウトボタン ---
+    # --- ログアウト ---
     if st.button("ログアウト"):
         st.session_state.user = None
         st.rerun()
 
     st.write(f"ログイン中: {st.session_state.user}")
 
-    # --- メッセージ入力 ---
-    message = st.text_input("メッセージを入力")
-    send = st.button("送信")
+    # --- スレ選択してないとき：スレ一覧 ---
+    if st.session_state.thread_id is None:
+        st.subheader("📝 スレ一覧")
+        threads = load_threads()
+        for tid, title, created in threads:
+            if st.button(f"{title} ({created})", key=f"thread_{tid}"):
+                st.session_state.thread_id = tid
+                st.rerun()
 
-    if send and message:
-        save_message(st.session_state.user, message)
+        st.subheader("新しいスレを作成")
+        new_thread = st.text_input("スレッド名を入力")
+        if st.button("作成"):
+            if new_thread:
+                create_thread(new_thread)
+                st.success("スレを作成しました")
+                st.rerun()
+        return
+
+    # --- スレ表示 ---
+    st.subheader(f"📌 スレッド: {st.session_state.thread_id}")
+    if st.button("← スレ一覧へ戻る"):
+        st.session_state.thread_id = None
         st.rerun()
 
-    # --- チャット履歴表示 ---
-    st.subheader("📜 チャット履歴")
-
-    # 管理者だけ履歴全削除
-    if st.session_state.user == ADMIN_USER:
-        if st.button("💥 全履歴を削除（管理者用）"):
-            conn = sqlite3.connect(DB_FILE)
-            c = conn.cursor()
-            c.execute("DELETE FROM messages")
-            conn.commit()
-            conn.close()
-            st.success("チャット履歴をすべて削除しました")
+    # メッセージ入力
+    message = st.text_input("メッセージを入力")
+    if st.button("送信"):
+        if message:
+            save_message(st.session_state.user, message, st.session_state.thread_id)
             st.rerun()
 
-    messages = load_messages()
+    # 履歴表示
+    messages = load_messages(st.session_state.thread_id)
     for msg_id, user, msg, ts in messages:
         st.write(f"[{ts}] {user}: {msg}")
-        # 管理者のみ削除ボタン
         if st.session_state.user == ADMIN_USER:
             if st.button(f"削除 {msg_id}"):
                 delete_message(msg_id)
                 st.rerun()
 
 if __name__ == "__main__":
-    init_db()
-    main()
+    init_db()  # ← DB初期化
+    main()     # ← アプリ実行
