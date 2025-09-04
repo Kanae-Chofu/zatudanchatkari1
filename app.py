@@ -61,11 +61,14 @@ def save_message(username, message, thread_id):
     conn.commit()
     conn.close()
 
-# --- メッセージ取得 ---
+# --- メッセージ取得（最新が上に表示される） ---
 def load_messages(thread_id):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    c.execute("SELECT id, username, message, timestamp FROM messages WHERE thread_id=? ORDER BY id ASC", (thread_id,))
+    c.execute(
+        "SELECT id, username, message, timestamp FROM messages WHERE thread_id=? ORDER BY id DESC",
+        (thread_id,)
+    )
     rows = c.fetchall()
     conn.close()
     return rows
