@@ -180,12 +180,24 @@ def main():
             conn.close()
             st.success("チャット履歴をすべて削除しました")
 
-    # メッセージ入力
-    message = st.text_input("メッセージを入力")
+    # メッセージ送信処理
+    def handle_message():
+        msg = st.session_state.input_message
+        if msg:
+            save_message(st.session_state.user, msg, st.session_state.thread_id)
+            st.session_state.input_message = ""  # 入力欄をクリア
+
+    # メッセージ入力（Enterキーでも送信可能）
+    st.text_input(
+        "送信",
+        key="input_message",          # ← chat_input ではなく別名にする
+        on_change=handle_message    
+    )
+
+    # 送信ボタン（クリックでも送信可能）
     if st.button("送信"):
-        if message:
-            save_message(st.session_state.user, message, st.session_state.thread_id)
-            st.rerun()
+        handle_message()
+
 
     # 履歴表示
     messages = load_messages(st.session_state.thread_id)
