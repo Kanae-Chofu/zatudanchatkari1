@@ -317,7 +317,7 @@ def main():
         if st.button("このアプリの全メッセージを削除（管理者）"):
             delete_all_messages()
             st.success("チャット履歴をすべて削除しました")
-            st.experimental_rerun()
+            st.rerun()
 
     # 送信ハンドラ（Enter とボタンの両方から呼ぶ）
     def handle_send():
@@ -350,7 +350,7 @@ def main():
             if st.session_state.user == ADMIN_USER:
                 if st.button(f"削除 {msg_id}", key=f"del_{msg_id}"):
                     delete_message(msg_id)
-                    st.experimental_rerun()
+                    st.rerun()
 
 # -------------------------------
 if __name__ == "__main__":
